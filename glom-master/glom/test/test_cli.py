@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 import pytest
 from face import CommandChecker, CommandLineError
@@ -172,3 +173,30 @@ def test_main(tmp_path):
     os.chdir(str(tmp_path))
     res = subprocess.check_output(['glom', 'a', '{"a": 3}'])
     assert res.decode('utf8') in ('3\n', '3\r\n')  # unix or windows line end okay
+
+## Tests gérérés par un IA - Claude 
+def test_console_main_success(monkeypatch, capsys):
+    # couvre console_main() sur le chemin "succès": sys.exit(main(argv) or 0)
+    monkeypatch.delenv('GLOM_CLI_DEBUG', raising=False)
+    monkeypatch.setattr(sys, 'argv', ['glom', 'a.b.c', '{"a": {"b": {"c": "d"}}}'])
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.console_main()
+
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert out.strip() == '"d"'
+
+
+def test_console_main_debug_env_error(monkeypatch, capsys):
+    # couvre la branche GLOM_CLI_DEBUG (print(sys.argv)) et le cas d'erreur
+    monkeypatch.setenv('GLOM_CLI_DEBUG', '1')
+    monkeypatch.setattr(sys, 'argv', ['glom', 'a.b.fail', '{"a": {"b": "c"}}'])
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.console_main()
+
+    assert excinfo.value.code == 1
+    out = capsys.readouterr().out
+    # le print(sys.argv) de debug doit apparaître avant la sortie normale
+    assert 'a.b.fail' in out
